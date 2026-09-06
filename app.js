@@ -152,6 +152,89 @@ async function commit(){
     $("status").textContent=`Committed successfully. Backup: ${backup}`;
   }catch(e){$("status").textContent=e.message}
 }
+
+function addChat(role,text){
+  const div=document.createElement("div");
+  div.className="msg "+(role==="user"?"user":"agent");
+  if(role==="agent"){
+    const h=document.createElement("h3"); h.textContent="AI Repo Agent"; div.appendChild(h);
+  }
+  const p=document.createElement("div"); p.textContent=text; div.appendChild(p);
+  $("chat").appendChild(div); $("chat").scrollTop=$("chat").scrollHeight;
+}
+function selectedOrRelevant(){
+  const s=selected();
+  if(s.length) return s;
+  return state.files.slice(0,60);
+}
+async function sendPrompt(){
+  const prompt=$("prompt").value.trim();
+  if(!prompt){return}
+  if(!state.files.length){
+    addChat("agent","Load a GitHub repository first so I can inspect its files.");
+    return;
+  }
+  addChat("user",prompt);
+  $("sendPrompt").disabled=true;
+  $("status").textContent="Agent is thinking…";
+  try{
+    const files=selectedOrRelevant();
+    const context=files.map(f=>`\n--- FILE: ${f.path} ---\n${f.content}`).join("\n");
+    const instruction=`You are an interactive repository coding agent. The user has given you a request.
+Analyze the supplied repository files in context of the request.
+
+Return ONLY valid JSON:
+{
+  "reply":"A concise natural-language answer to the user, including findings and suggestions.",
+  "summary":"Short change summary",
+  "actions":[
+    {"type":"modify|create|delete","path":"relative/path","reason":"why","content":"COMPLETE file content for modify/create"}
+  ],
+  "validation":["specific tests/checks to run"]
+}
+
+Rules:
+- Follow the user's request.
+- If they only ask a question or suggestions, actions may be [].
+- If proposing code changes, provide complete replacement content.
+- Use relative POSIX paths only; never absolute paths or .. .
+- Do not claim tests were executed.
+- Preserve unrelated behavior.
+USER REQUEST:
+${prompt}
+
+REPOSITORY FILES:
+${context}`;
+    const a=await openRouter([
+      {role:"system",content:"You are a careful senior software engineer and repository agent. JSON only."},
+      {role:"user",content:instruction}
+    ]);
+    validateActions({actions:a.actions||[]});
+    if(a.reply) addChat("agent",a.reply);
+    if(a.summary) addChat("agent","Proposed plan: "+a.summary);
+    if(Array.isArray(a.validation)&&a.validation.length) addChat("agent","Validation plan:\n• "+a.validation.join("\n• "));
+    state.actions=a.actions||[];
+    if(state.actions.length){
+      renderReview({summary:a.summary||"Changes proposed from your request.",actions:state.actions,validation:a.validation||[]});
+      $("reviewCard").classList.remove("hidden");
+    } else {
+      $("reviewCard").classList.add("hidden");
+    }
+    $("status").textContent=state.actions.length?`${state.actions.length} proposed change(s) ready for review.`:"No file changes proposed.";
+    $("prompt").value="";
+  }catch(e){
+    addChat("agent","Error: "+e.message);
+    $("status").textContent=e.message;
+  }finally{
+    $("sendPrompt").disabled=false;
+  }
+}
+$("sendPrompt").onclick=sendPrompt;
+$("clearChat").onclick=()=>{$("chat").innerHTML=""};
+$("prompt").addEventListener("keydown",e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==="Enter") sendPrompt();
+});
+
 $("load").onclick=loadRepo;
 $("analyze").onclick=analyze;
 $("commit").onclick=commit;

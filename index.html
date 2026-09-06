@@ -39,6 +39,17 @@
 </section>
 
 <section class="card">
+  <h2>💬 Talk to the Agent</h2>
+  <p class="muted">Describe what you want changed, ask for a review, or request suggestions.</p>
+  <textarea id="prompt" rows="5" placeholder="Example: Review this repository for security issues and suggest fixes..."></textarea>
+  <div class="row">
+    <button id="sendPrompt">Send to Agent</button>
+    <button id="clearChat">Clear chat</button>
+  </div>
+  <div id="chat" class="chat"></div>
+</section>
+
+<section class="card">
   <h2>Agent</h2>
   <p id="status">Load a repository to begin.</p>
   <div class="row">

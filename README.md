@@ -23,3 +23,7 @@ If a Worker URL is entered, the PWA sends AI and GitHub requests through the Wor
 In that mode, `OPENROUTER_API_KEY` and `GITHUB_TOKEN` stay in Cloudflare Worker secrets and do not need to be entered into the browser.
 
 If no Worker URL is entered, direct browser-to-API mode remains available for personal testing.
+
+
+## Interactive dialogue
+The PWA includes a chat box for natural-language instructions, questions, code reviews, and improvement suggestions. Ctrl/Cmd+Enter sends the prompt. If changes are proposed, they appear in the review section before commit.
