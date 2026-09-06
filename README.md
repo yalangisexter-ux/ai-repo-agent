@@ -1,16 +1,26 @@
-# AI Repo Agent — iPhone-only PWA
+# AI Repo Agent — Repository-Level iPhone PWA
 
-This is a no-Xcode, no-laptop version. It is a static Progressive Web App using GitHub REST APIs and Gemini `generateContent`.
+This build upgrades the original Python-only repair screen into a repository-level coding agent.
 
-## Run on iPhone
-1. Host this folder on any HTTPS static host (GitHub Pages is suitable).
-2. Open the site in Safari.
-3. Share → Add to Home Screen.
-4. Open Settings inside the app and enter a GitHub fine-grained token with Contents read/write for the target repository, plus a Gemini API key.
-5. Enter `owner/repository`, branch, select files, give an instruction, Analyze & Fix, review, then commit.
+## What changed
+- Loads source/configuration files across the repository, not only `.py`.
+- Gemini can propose `create`, `modify`, and `delete` operations.
+- New files can be created and existing files can be edited or deleted.
+- The IDE can modify its own repository (`ai-repo-agent`) like any other repository.
+- Before every approved push, a timestamped backup branch is created at the current branch HEAD.
+- The approved operations are assembled into one Git commit and pushed with a non-force branch update.
+- Binary assets are not sent to Gemini as text.
 
-## Security
-The simple build calls Gemini directly from the browser, so the Gemini key is available to the browser. For a public deployment, use `worker/worker.js` as a proxy and keep the Gemini key in the Worker secret. Do not share your GitHub token.
+## Supported text/source formats
+Python, JavaScript, TypeScript, JSX/TSX, Java, Kotlin/KTS, Swift, Go, Rust, Ruby, PHP, C/C++, C#, Dart, shell, HTML, CSS/SCSS, XML/SVG, JSON, YAML, TOML, INI/config, Gradle, SQL, GraphQL, protobuf, Markdown, text and common project files.
 
-## Git behavior
-The commit flow reads the current branch tip, creates blobs for changed files, creates a tree based on the current tree, creates one commit, then updates the branch. GitHub documents this Git database workflow and the Contents write permission requirement.
+## GitHub permissions
+For each repository the agent modifies, the fine-grained token needs Repository access to that repository and at least:
+- Contents: Read and write
+- Metadata: Read-only
+
+## Self-modification
+Set the repository to `yalangisexter-ux/ai-repo-agent`. The agent can load and propose changes to `app.js`, `index.html`, `styles.css`, manifest/config files, etc. After committing, GitHub Pages deploys the new version; reload the PWA to run it.
+
+## Security note
+The current personal-use PWA stores GitHub/Gemini credentials in browser localStorage. For public deployment, use the included Worker proxy for Gemini and preferably GitHub OAuth/GitHub App authentication instead of a raw PAT.
