@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon.svg">
+<title>AI Repo Agent</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+<header><div><h1>AI Repo Agent</h1><p>Gemini-powered GitHub repair agent</p></div><button id="settingsBtn">⚙️</button></header>
+<main>
+<section class="card"><label>GitHub repository</label><input id="repo" placeholder="owner/repository"><label>Branch</label><input id="branch" value="main"><button id="loadBtn" class="primary">Load Python files</button><div id="loadStatus" class="status"></div></section>
+<section class="card"><div class="row"><h2>Files</h2><button id="selectAll">Select all</button></div><div id="files" class="filelist">Load a repository first.</div></section>
+<section class="card"><label>Repair instruction</label><textarea id="instruction" rows="4" placeholder="Example: Fix the failing authentication flow and keep the public API unchanged."></textarea><button id="analyzeBtn" class="primary" disabled>🤖 Analyze & Fix</button><div id="agentStatus" class="status"></div></section>
+<section id="review" class="card hidden"><h2>Review changes</h2><div id="summary"></div><div id="changes"></div><label>Commit message</label><input id="commitMessage" value="AI Repo Agent: repair selected files"><button id="commitBtn" class="danger">Commit all approved changes</button><div id="commitStatus" class="status"></div></section>
+</main>
+<footer><span>iPhone-first PWA</span><span id="modelLabel"></span></footer>
+</div>
+<dialog id="settingsDialog"><form method="dialog" class="dialog"><h2>Settings</h2><label>GitHub token</label><input id="ghToken" type="password" autocomplete="off" placeholder="Fine-grained token with Contents: Read/Write"><label>Gemini API key</label><input id="geminiKey" type="password" autocomplete="off"><label>Gemini model</label><input id="geminiModel" value="gemini-2.5-flash"><p class="hint">For personal use, these values are stored only in this browser. For a public deployment, use the included Cloudflare Worker proxy instead of exposing the Gemini key.</p><div class="row"><button value="cancel">Cancel</button><button id="saveSettings" value="default" class="primary">Save</button></div></form></dialog>
+<script src="app.js"></script>
+</body></html>
