@@ -27,3 +27,7 @@ If no Worker URL is entered, direct browser-to-API mode remains available for pe
 
 ## Interactive dialogue
 The PWA includes a chat box for natural-language instructions, questions, code reviews, and improvement suggestions. Ctrl/Cmd+Enter sends the prompt. If changes are proposed, they appear in the review section before commit.
+
+
+## Credential persistence
+The PWA now remembers the GitHub and OpenRouter credentials on the device when the **Remember credentials** option is enabled (default). Disable it to clear stored credentials on the next save.

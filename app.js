@@ -34,12 +34,25 @@ function saveSettings(){
   localStorage.setItem("repoAgentBranch",$("branch").value);
   localStorage.setItem("repoAgentModel",$("model").value);
   localStorage.setItem("repoAgentWorker",$("workerUrl").value.trim());
+  localStorage.setItem("repoAgentRemember", $("rememberKeys").checked ? "1" : "0");
+  if($("rememberKeys").checked){
+    localStorage.setItem("repoAgentGithubToken",$("githubToken").value);
+    localStorage.setItem("repoAgentOpenRouterKey",$("openrouterKey").value);
+  }else{
+    localStorage.removeItem("repoAgentGithubToken");
+    localStorage.removeItem("repoAgentOpenRouterKey");
+  }
 }
 function loadSettings(){
   $("repo").value=localStorage.getItem("repoAgentRepo")||"";
   $("branch").value=localStorage.getItem("repoAgentBranch")||"main";
   $("model").value=localStorage.getItem("repoAgentModel")||"minimax/minimax-m3:free";
   $("workerUrl").value=localStorage.getItem("repoAgentWorker")||"";
+  $("rememberKeys").checked=localStorage.getItem("repoAgentRemember")!=="0";
+  if($("rememberKeys").checked){
+    $("githubToken").value=localStorage.getItem("repoAgentGithubToken")||"";
+    $("openrouterKey").value=localStorage.getItem("repoAgentOpenRouterKey")||"";
+  }
 }
 async function loadRepo(){
   try{
@@ -239,3 +252,8 @@ $("load").onclick=loadRepo;
 $("analyze").onclick=analyze;
 $("commit").onclick=commit;
 loadSettings();
+
+["repo","branch","githubToken","openrouterKey","model","workerUrl","rememberKeys"].forEach(id=>{
+  $(id).addEventListener("change",saveSettings);
+  $(id).addEventListener("blur",saveSettings);
+});

@@ -3,71 +3,58 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#111827">
+<meta name="theme-color" content="#17123b">
 <title>AI Repo Agent</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="styles.css?v=5">
+<link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
+<div class="bg-orb orb1"></div><div class="bg-orb orb2"></div>
 <main>
-<header>
-  <h1>AI Repo Agent</h1>
-  <p>iPhone-first GitHub coding agent</p>
+<header class="hero">
+  <div class="brand"><div class="logo">✦</div><div><h1>AI Repo Agent</h1><p>Build • Review • Repair • Ship</p></div></div>
+  <div class="pill">OPENROUTER</div>
 </header>
 
-<section class="card">
-  <h2>Configuration</h2>
-  <label>GitHub repository
-    <input id="repo" placeholder="owner/repository" autocomplete="off">
-  </label>
-  <label>Branch
-    <input id="branch" value="main" autocomplete="off">
-  </label>
-  <label>GitHub Personal Access Token
-    <input id="githubToken" type="password" placeholder="github_pat_..." autocomplete="off">
-  </label>
-  <label>OpenRouter API Key
-    <input id="openrouterKey" type="password" placeholder="sk-or-v1-..." autocomplete="off">
-  </label>
-  <label>OpenRouter model
-    <input id="model" value="minimax/minimax-m3:free" autocomplete="off">
-  </label>
-  <label>Optional Worker URL
-    <input id="workerUrl" placeholder="https://your-worker.workers.dev" autocomplete="off">
-  </label>
-  <button id="load">Load repository</button>
+<section class="card settings-card">
+  <div class="section-head"><div><span class="eyebrow">01 · CONNECTIONS</span><h2>Connect your workspace</h2></div><span class="status-dot">● Ready</span></div>
+  <div class="grid">
+    <label>GitHub repository<input id="repo" placeholder="owner/repository" autocomplete="off"></label>
+    <label>Branch<input id="branch" value="main" autocomplete="off"></label>
+    <label class="wide">GitHub Personal Access Token<input id="githubToken" type="password" placeholder="github_pat_..." autocomplete="off"></label>
+    <label class="wide">OpenRouter API Key<input id="openrouterKey" type="password" placeholder="sk-or-v1-..." autocomplete="off"></label>
+    <label class="wide">OpenRouter model<input id="model" value="minimax/minimax-m3:free" autocomplete="off"></label>
+    <label class="wide">Optional Worker URL<input id="workerUrl" placeholder="https://your-worker.workers.dev" autocomplete="off"></label>
+  </div>
+  <label class="remember"><input id="rememberKeys" type="checkbox" checked> Remember credentials on this device <span>ⓘ</span></label>
+  <div class="actions"><button id="load" class="primary">⚡ Connect &amp; Load Repository</button></div>
+  <p class="security-note">Credentials are stored in this browser when “Remember” is enabled. For public deployment, use the Worker to keep secrets server-side.</p>
+</section>
+
+<section class="card chat-card">
+  <div class="section-head"><div><span class="eyebrow">02 · CONVERSATION</span><h2>Tell your agent what to do</h2></div><span class="ai-badge">AI</span></div>
+  <p class="sub">Ask for reviews, fixes, features, refactors, security checks, or improvement ideas.</p>
+  <div id="chat" class="chat"><div class="welcome"><b>👋 Ready when you are.</b><span>Try: “Review this repository for security issues and suggest fixes.”</span></div></div>
+  <textarea id="prompt" rows="4" placeholder="Describe the task…"></textarea>
+  <div class="chat-actions"><button id="sendPrompt" class="primary">Send to Agent ↗</button><button id="clearChat" class="ghost">Clear</button></div>
 </section>
 
 <section class="card">
-  <h2>💬 Talk to the Agent</h2>
-  <p class="muted">Describe what you want changed, ask for a review, or request suggestions.</p>
-  <textarea id="prompt" rows="5" placeholder="Example: Review this repository for security issues and suggest fixes..."></textarea>
-  <div class="row">
-    <button id="sendPrompt">Send to Agent</button>
-    <button id="clearChat">Clear chat</button>
-  </div>
-  <div id="chat" class="chat"></div>
-</section>
-
-<section class="card">
-  <h2>Agent</h2>
-  <p id="status">Load a repository to begin.</p>
-  <div class="row">
-    <button id="selectAll" disabled>Select all</button>
-    <button id="clear" disabled>Clear</button>
-  </div>
+  <div class="section-head"><div><span class="eyebrow">03 · REPOSITORY</span><h2>Source &amp; configuration</h2></div></div>
+  <p id="status" class="status">Connect a repository to begin.</p>
+  <div class="row"><button id="selectAll" class="ghost" disabled>Select all</button><button id="clear" class="ghost" disabled>Clear</button></div>
   <div id="files" class="files"></div>
-  <button id="analyze" disabled>🤖 Plan &amp; Analyze</button>
+  <button id="analyze" class="secondary" disabled>🤖 Plan &amp; Analyze selected files</button>
 </section>
 
 <section id="reviewCard" class="card hidden">
-  <h2>Review changes</h2>
+  <div class="section-head"><div><span class="eyebrow">04 · REVIEW</span><h2>Proposed changes</h2></div><span class="review-badge">CHECK BEFORE COMMIT</span></div>
   <div id="review"></div>
-  <button id="commit">Create backup &amp; commit approved changes</button>
+  <button id="commit" class="primary">✓ Create Backup &amp; Commit Approved Changes</button>
 </section>
 
-<footer>Repository-level agent · OpenRouter · GitHub</footer>
+<footer>AI Repo Agent · iPhone-first PWA · OpenRouter + GitHub + optional Worker</footer>
 </main>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
