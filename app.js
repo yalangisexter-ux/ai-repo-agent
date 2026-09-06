@@ -1,22 +1,158 @@
 const $=id=>document.getElementById(id);
-const state={tree:[],files:[],selected:new Set(),contents:{},changes:{},deletes:new Set(),creates:new Set(),backupBranch:null};
-const TEXT_EXTENSIONS=new Set(['py','js','mjs','cjs','ts','tsx','jsx','java','kt','kts','swift','go','rs','rb','php','c','h','cpp','cc','hpp','cs','dart','scala','sh','bash','zsh','fish','ps1','html','htm','css','scss','sass','less','xml','svg','json','jsonc','yaml','yml','toml','ini','cfg','conf','properties','gradle','md','markdown','txt','rst','csv','sql','graphql','gql','proto','dockerfile','env.example']);
-const isTextPath=p=>{const n=p.split('/').pop().toLowerCase();if(['dockerfile','makefile'].includes(n)||n.startsWith('.env'))return true;return TEXT_EXTENSIONS.has(n.includes('.')?n.split('.').pop():'')};
-const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function loadSettings(){$('ghToken').value=localStorage.getItem('ghToken')||'';$('geminiKey').value=localStorage.getItem('geminiKey')||'';$('geminiModel').value=localStorage.getItem('geminiModel')||'gemini-3.6-flash';$('modelLabel').textContent=$('geminiModel').value}loadSettings();
-$('settingsBtn').onclick=()=>{$('settingsDialog').showModal()};
-$('saveSettings').onclick=()=>{localStorage.setItem('ghToken',$('ghToken').value.trim());localStorage.setItem('geminiKey',$('geminiKey').value.trim());localStorage.setItem('geminiModel',$('geminiModel').value.trim()||'gemini-3.6-flash');$('modelLabel').textContent=localStorage.getItem('geminiModel')};
-function ghHeaders(){return{'Accept':'application/vnd.github+json','Authorization':'Bearer '+localStorage.getItem('ghToken'),'X-GitHub-Api-Version':'2026-03-10'}}
-async function gh(path,opt={}){const r=await fetch('https://api.github.com'+path,{...opt,headers:{...ghHeaders(),...(opt.headers||{})}});const t=await r.text();if(!r.ok)throw Error(`GitHub ${r.status}: ${t}`);return t?JSON.parse(t):null}
-function repoBranch(){const repo=$('repo').value.trim().replace(/^\/+|\/+$/g,'');const branch=$('branch').value.trim()||'main';if(!/^[-.\w]+\/[-.\w]+$/.test(repo))throw Error('Use owner/repository.');return{repo,branch}}
-function reset(){state.files=[];state.selected.clear();state.contents={};state.changes={};state.deletes.clear();state.creates.clear();state.backupBranch=null;$('review').classList.add('hidden')}
-$('loadBtn').onclick=async()=>{try{if(!localStorage.getItem('ghToken'))throw Error('Open Settings and add a GitHub token first.');reset();const{repo,branch}=repoBranch();$('loadStatus').textContent='Reading complete repository tree…';const d=await gh(`/repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`);if(d.truncated)throw Error('GitHub returned a truncated tree.');state.tree=d.tree.filter(x=>x.type==='blob'&&isTextPath(x.path));state.files=state.tree.map(x=>x.path).sort();state.selected=new Set(state.files);renderFiles();$('analyzeBtn').disabled=!state.files.length;$('loadStatus').textContent=`Loaded ${state.files.length} text/source files (not just Python).`}catch(e){$('loadStatus').textContent=e.message}};
-function renderFiles(){$('files').innerHTML=state.files.length?state.files.map((p,i)=>`<label class="file"><input type="checkbox" data-i="${i}" ${state.selected.has(p)?'checked':''}> <span>${escapeHtml(p)}</span></label>`).join(''):'No supported text/source files found.';document.querySelectorAll('.file input').forEach(x=>x.onchange=()=>{const p=state.files[+x.dataset.i];x.checked?state.selected.add(p):state.selected.delete(p)})}
-$('selectAll').onclick=()=>{state.files.forEach(p=>state.selected.add(p));renderFiles()};
-$('clearAll').onclick=()=>{state.selected.clear();renderFiles()};
-async function getBlobText(repo,sha,path){const d=await gh(`/repos/${repo}/git/blobs/${sha}`);const raw=atob(d.content.replace(/\s/g,''));const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));if(bytes.includes(0))throw Error(`Binary file selected: ${path}. Binary assets are not edited as text.`);return new TextDecoder().decode(bytes)}
-async function gemini(prompt){const key=localStorage.getItem('geminiKey');if(!key)throw Error('Open Settings and add a Gemini API key first.');const model=localStorage.getItem('geminiModel')||'gemini-3.6-flash';const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:.1,responseMimeType:'application/json'}})});const t=await r.text();if(!r.ok)throw Error(`Gemini ${r.status}: ${t}`);const j=JSON.parse(t),text=j.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'';return JSON.parse(text.replace(/^```json\s*|\s*```$/g,''))}
-function validate(r){if(!r||!Array.isArray(r.actions))throw Error('Gemini returned an invalid agent plan.');for(const a of r.actions){if(!['create','modify','delete'].includes(a.type)||!a.path||a.path.startsWith('/')||a.path.includes('..')||a.path.includes('\\'))throw Error(`Unsafe/invalid action for ${a.path||'unknown path'}`);if((a.type==='create'||a.type==='modify')&&typeof a.content!=='string')throw Error(`Missing complete content for ${a.path}`)}}
-$('analyzeBtn').onclick=async()=>{try{const{repo,branch}=repoBranch();const paths=[...state.selected];if(!paths.length)throw Error('Select at least one file.');$('analyzeBtn').disabled=true;$('agentStatus').textContent='Downloading selected source/config files…';state.contents={};for(const f of state.tree.filter(x=>paths.includes(x.path)))state.contents[f.path]=await getBlobText(repo,f.sha,f.path);const payload=Object.entries(state.contents).map(([p,c])=>`\n===== ${p} =====\n${c}`).join('\n');const instruction=$('instruction').value.trim()||'Inspect the selected repository files, find clear correctness or maintainability improvements, and make only justified changes.';const prompt=`You are a repository-level software engineering agent.\nUser instruction:\n${instruction}\n\nRepository: ${repo}\nBranch: ${branch}\n\nYou may CREATE, MODIFY, or DELETE text/source/config files. Do not limit yourself to Python. Reason across files and keep references consistent.\n\nReturn ONLY JSON:\n{"summary":"short explanation","actions":[{"type":"modify|create|delete","path":"path","reason":"why","content":"COMPLETE file contents for create/modify"}],"validation":["checks to run"]}\n\nRules: Only provided files may be modified/deleted; new files may be created. Content must be complete. Never add secrets, credential theft, malware, persistence, destructive commands, or unrelated functionality. Preserve existing behavior unless the instruction requires change. Empty actions are valid.\n\nProvided files:\n${payload}`;$('agentStatus').textContent='Gemini is planning repository-level changes…';const result=await gemini(prompt);validate(result);state.changes={};state.deletes=new Set();state.creates=new Set();const existing=new Set(Object.keys(state.contents));for(const a of result.actions){if(a.type==='delete'){if(!existing.has(a.path))throw Error(`Agent tried to delete an unloaded file: ${a.path}`);state.deletes.add(a.path)}else{state.changes[a.path]=a.content;if(a.type==='create')state.creates.add(a.path)}}$('summary').innerHTML=`<p>${escapeHtml(result.summary||'Changes proposed.')}</p><p class="muted">${state.creates.size} created · ${Object.keys(state.changes).length-state.creates.size} modified · ${state.deletes.size} deleted</p>`+(result.validation?.length?`<h3>Validation plan</h3><ul>${result.validation.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul>`:'');const out=[];for(const[p,c]of Object.entries(state.changes))out.push(`<details class="change" open><summary><b>${state.creates.has(p)?'CREATE':'MODIFY'}</b> ${escapeHtml(p)}</summary><pre class="code">${escapeHtml(c)}</pre></details>`);for(const p of state.deletes)out.push(`<details class="change delete-change" open><summary><b>DELETE</b> ${escapeHtml(p)}</summary><p class="delete-note">This file will be removed from the branch.</p></details>`);$('changes').innerHTML=out.join('')||'<p>No changes proposed.</p>';$('review').classList.remove('hidden');$('agentStatus').textContent=`Plan ready: ${result.actions.length} operation(s). Review before committing.`}catch(e){$('agentStatus').textContent=e.message}finally{$('analyzeBtn').disabled=false}};
-async function createBackup(repo,parent){const stamp=new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14);const base=($('branch').value.trim()||'main').replace(/[^A-Za-z0-9._/-]/g,'-');const name=`ai-agent-backup/${base}-${stamp}`;await gh(`/repos/${repo}/git/refs`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ref:`refs/heads/${name}`,sha:parent})});return name}
-$('commitBtn').onclick=async()=>{try{const{repo,branch}=repoBranch();const modified=Object.keys(state.changes),deleted=[...state.deletes],ops=[...new Set([...modified,...deleted])];if(!ops.length)throw Error('No changes to commit.');if(!confirm(`Create a backup, then commit ${ops.length} operation(s) to ${repo}:${branch}?`))return;$('commitBtn').disabled=true;$('commitStatus').textContent='Reading branch head and creating backup snapshot…';const ref=await gh(`/repos/${repo}/git/ref/heads/${encodeURIComponent(branch)}`),parent=ref.object.sha;state.backupBranch=await createBackup(repo,parent);$('commitStatus').textContent=`Backup created: ${state.backupBranch}. Building commit…`;const pc=await gh(`/repos/${repo}/git/commits/${parent}`),entries=[];for(const[p,c]of Object.entries(state.changes)){const b=await gh(`/repos/${repo}/git/blobs`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:c,encoding:'utf-8'})});entries.push({path:p,mode:'100644',type:'blob',sha:b.sha})}for(const p of state.deletes)entries.push({path:p,mode:'100644',type:'blob',sha:null});const tree=await gh(`/repos/${repo}/git/trees`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base_tree:pc.tree.sha,tree:entries})});const message=$('commitMessage').value.trim()||'AI Repo Agent: repository changes';const nc=await gh(`/repos/${repo}/git/commits`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,tree:tree.sha,parents:[parent]})});await gh(`/repos/${repo}/git/refs/heads/${encodeURIComponent(branch)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({sha:nc.sha,force:false})});$('commitStatus').textContent=`Committed ${nc.sha.slice(0,12)}. Backup preserved at ${state.backupBranch}.`}catch(e){$('commitStatus').textContent=e.message+(state.backupBranch?` Backup remains at ${state.backupBranch}.`:'')}finally{$('commitBtn').disabled=false}};
+const state={files:[],loaded:{},actions:[],repo:"",branch:""};
+
+const sourceExt=new Set(["py","js","mjs","cjs","ts","tsx","jsx","java","kt","kts","swift","go","rs","rb","php","c","h","cc","cpp","cxx","hpp","cs","dart","scala","sh","bash","zsh","fish","html","htm","css","scss","sass","less","xml","svg","json","jsonc","yaml","yml","toml","ini","cfg","conf","properties","gradle","md","txt","sql","graphql","gql","proto"]);
+function isTextPath(p){
+  const base=p.split("/").pop().toLowerCase();
+  if(["dockerfile","makefile",".gitignore",".gitattributes",".editorconfig"].includes(base)) return true;
+  const i=base.lastIndexOf(".");
+  return i>0 && sourceExt.has(base.slice(i+1));
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function apiHeaders(token){return {"Accept":"application/vnd.github+json","Authorization":"Bearer "+token,"X-GitHub-Api-Version":"2022-11-28"};}
+function parseRepo(){
+  const v=$("repo").value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\/$/,"");
+  const m=v.match(/^([^/]+)\/([^/]+)$/); if(!m) throw new Error("Repository must be owner/repository");
+  return {owner:m[1],repo:m[2]};
+}
+async function gh(url,opt={}){
+  const worker=$("workerUrl").value.trim();
+  let target=url, headers={...(opt.headers||{})};
+  if(worker){
+    target=worker.replace(/\/$/,"")+"/github?url="+encodeURIComponent(url);
+  }else{
+    const token=$("githubToken").value.trim(); if(!token) throw new Error("GitHub token is required");
+    headers={...apiHeaders(token),...headers};
+  }
+  const r=await fetch(target,{...opt,headers});
+  const t=await r.text(); let d; try{d=JSON.parse(t)}catch{d=t}
+  if(!r.ok) throw new Error("GitHub "+r.status+": "+(d.message||d.error||t));
+  return d;
+}
+function saveSettings(){
+  localStorage.setItem("repoAgentRepo",$("repo").value);
+  localStorage.setItem("repoAgentBranch",$("branch").value);
+  localStorage.setItem("repoAgentModel",$("model").value);
+  localStorage.setItem("repoAgentWorker",$("workerUrl").value.trim());
+}
+function loadSettings(){
+  $("repo").value=localStorage.getItem("repoAgentRepo")||"";
+  $("branch").value=localStorage.getItem("repoAgentBranch")||"main";
+  $("model").value=localStorage.getItem("repoAgentModel")||"minimax/minimax-m3:free";
+  $("workerUrl").value=localStorage.getItem("repoAgentWorker")||"";
+}
+async function loadRepo(){
+  try{
+    saveSettings(); const {owner,repo}=parseRepo(); state.repo=repo; state.branch=$("branch").value.trim()||"main";
+    $("status").textContent="Loading repository tree…"; $("files").innerHTML="";
+    const branch=encodeURIComponent(state.branch);
+    const tree=await gh(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+    const candidates=tree.tree.filter(x=>x.type==="blob"&&isTextPath(x.path));
+    state.files=[]; state.loaded={};
+    $("status").textContent=`Found ${candidates.length} source/config files. Loading…`;
+    for(let i=0;i<candidates.length;i++){
+      const x=candidates[i];
+      const blob=await gh(`https://api.github.com/repos/${owner}/${repo}/git/blobs/${x.sha}`);
+      if(blob.encoding!=="base64") continue;
+      const bin=atob(blob.content.replace(/\s/g,""));
+      if(bin.includes("\0")) continue;
+      const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
+      const text=new TextDecoder().decode(bytes);
+      state.files.push({path:x.path,sha:x.sha,size:x.size,content:text});
+      state.loaded[x.path]=text;
+    }
+    renderFiles(); setButtons(true);
+    $("status").textContent=`Loaded ${state.files.length} source/config files. Select files for the agent.`;
+  }catch(e){$("status").textContent=e.message}
+}
+function renderFiles(){
+  $("files").innerHTML=state.files.map((f,i)=>`<label class="file"><input type="checkbox" data-i="${i}"><span>${esc(f.path)} <span class="badge">${f.size} B</span></span></label>`).join("");
+}
+function setButtons(on){$("selectAll").disabled=!on;$("clear").disabled=!on;$("analyze").disabled=!on}
+function selected(){
+  return [...$("files").querySelectorAll("input:checked")].map(x=>state.files[+x.dataset.i]);
+}
+$("selectAll").onclick=()=>{$("files").querySelectorAll("input").forEach(x=>x.checked=true)};
+$("clear").onclick=()=>{$("files").querySelectorAll("input").forEach(x=>x.checked=false)};
+async function openRouter(messages){
+  const worker=$("workerUrl").value.trim();
+  const model=$("model").value.trim(); if(!model) throw new Error("OpenRouter model is required");
+  const payload={model,messages,temperature:0.1,response_format:{type:"json_object"}};
+  let r;
+  if(worker){
+    r=await fetch(worker.replace(/\/$/,"")+"/ai",{
+      method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)
+    });
+  }else{
+    const key=$("openrouterKey").value.trim(); if(!key) throw new Error("OpenRouter API key is required");
+    r=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key,"HTTP-Referer":location.href,"X-Title":"AI Repo Agent"},
+      body:JSON.stringify(payload)
+    });
+  }
+  const t=await r.text(); let d; try{d=JSON.parse(t)}catch{d={}};
+  if(!r.ok) throw new Error("OpenRouter "+r.status+": "+(d.error?.message||d.message||t));
+  const content=d.choices?.[0]?.message?.content;
+  if(!content) throw new Error("OpenRouter returned no content");
+  try{return JSON.parse(content)}catch{throw new Error("Model did not return valid JSON")}
+}
+function promptFor(files){
+  const bundle=files.map(f=>`\n--- FILE: ${f.path} ---\n${f.content}`).join("\n");
+  return `You are a repository coding agent. Analyze the supplied files and propose only necessary changes to improve correctness, reliability, security, maintainability, or requested behavior. Return ONLY valid JSON with this shape:
+{"summary":"...","actions":[{"type":"modify|create|delete","path":"relative/path","reason":"...","content":"complete file contents for modify/create; omit content for delete"}],"validation":["test or validation steps"]}.
+Rules: preserve unrelated behavior; use relative POSIX paths; never use absolute paths or ..; do not invent files unless needed; for modify, content must be the COMPLETE replacement file; delete only when clearly justified. Do not claim tests were run. If no change is justified, actions must be [].
+FILES:${bundle}`;
+}
+function validateActions(a){
+  if(!a||!Array.isArray(a.actions)) throw new Error("Invalid agent response: missing actions");
+  for(const x of a.actions){
+    if(!["modify","create","delete"].includes(x.type)||!x.path) throw new Error("Invalid action");
+    if(x.path.startsWith("/")||x.path.includes("..")||x.path.includes("\\")||x.path.includes("\0")) throw new Error("Unsafe path: "+x.path);
+    if(x.type==="delete"&&!state.loaded[x.path]) throw new Error("Refusing to delete unloaded file: "+x.path);
+    if((x.type==="modify"||x.type==="create")&&typeof x.content!=="string") throw new Error("Missing complete content for "+x.path);
+  }
+}
+async function analyze(){
+  const files=selected(); if(!files.length){$("status").textContent="Select at least one file.";return}
+  try{
+    $("analyze").disabled=true; $("status").textContent="OpenRouter is analyzing…";
+    state.actions=[]; const a=await openRouter([{role:"system",content:"You are a careful software engineer. Output JSON only."},{role:"user",content:promptFor(files)}]);
+    validateActions(a); state.actions=a.actions;
+    renderReview(a); $("reviewCard").classList.remove("hidden");
+    $("status").textContent=`Plan ready: ${state.actions.length} proposed change(s).`;
+  }catch(e){$("status").textContent=e.message}finally{$("analyze").disabled=false}
+}
+function renderReview(a){
+  const html=`<p><b>Summary:</b> ${esc(a.summary||"No summary")}</p>
+  <p class="muted">Validation plan: ${esc((a.validation||[]).join(" · ")||"No validation plan")}</p>
+  ${a.actions.map((x,i)=>`<div class="change ${x.type}"><b>${esc(x.type.toUpperCase())}</b> — ${esc(x.path)}<p>${esc(x.reason||"")}</p><details><summary>Proposed content</summary>${x.content?`<pre>${esc(x.content)}</pre>`:"<p class='muted'>File will be deleted.</p>"}</details></div>`).join("")}
+  <p class="muted">Review the proposed changes before committing. A backup branch is created first.</p>`;
+  $("review").innerHTML=html;
+}
+async function commit(){
+  if(!state.actions.length){$("status").textContent="No changes to commit.";return}
+  try{
+    const {owner,repo}=parseRepo(), branch=state.branch, base=await gh(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`);
+    const baseSha=base.object.sha, commitObj=await gh(`https://api.github.com/repos/${owner}/${repo}/git/commits/${baseSha}`);
+    const backup=`ai-agent-backup/${branch.replace(/[^A-Za-z0-9._/-]/g,"-")}-${Date.now()}`;
+    await gh(`https://api.github.com/repos/${owner}/${repo}/git/refs`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ref:"refs/heads/"+backup,sha:baseSha})});
+    $("status").textContent=`Backup created: ${backup}. Creating commit…`;
+    const blobs={};
+    for(const a of state.actions){
+      if(a.type==="delete") continue;
+      const b=await gh(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content:a.content,encoding:"utf-8"})});
+      blobs[a.path]=b.sha;
+    }
+    const treeItems=Object.entries(blobs).map(([path,sha])=>({path,mode:"100644",type:"blob",sha}));
+    for(const a of state.actions.filter(x=>x.type==="delete")) treeItems.push({path:a.path,mode:"100644",type:"blob",sha:null});
+    const tree=await gh(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({base_tree:commitObj.tree.sha,tree:treeItems})});
+    const newCommit=await gh(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"AI Repo Agent: apply approved changes",tree:tree.sha,parents:[baseSha]})});
+    await gh(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({sha:newCommit.sha,force:false})});
+    $("status").textContent=`Committed successfully. Backup: ${backup}`;
+  }catch(e){$("status").textContent=e.message}
+}
+$("load").onclick=loadRepo;
+$("analyze").onclick=analyze;
+$("commit").onclick=commit;
+loadSettings();

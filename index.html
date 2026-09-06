@@ -1,1 +1,62 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon.svg"><title>AI Repo Agent</title><link rel="stylesheet" href="styles.css?v=3"></head><body><div class="app"><header><div><h1>AI Repo Agent</h1><p>Gemini repository engineering agent</p></div><button id="settingsBtn">⚙️</button></header><main><section class="card"><label>GitHub repository</label><input id="repo" placeholder="owner/repository" autocomplete="off"><label>Branch</label><input id="branch" value="main"><button id="loadBtn" class="primary">Load repository</button><div id="loadStatus" class="status"></div></section><section class="card"><div class="row"><h2>Source & configuration files</h2><div class="row"><button id="selectAll">Select all</button><button id="clearAll">Clear</button></div></div><p class="hint">The agent can work across Python, JavaScript, TypeScript, Kotlin, Java, Swift, HTML, CSS, JSON, YAML, Gradle, Markdown and other text/source files.</p><div id="files" class="filelist">Load a repository first.</div></section><section class="card"><label>Agent instruction</label><textarea id="instruction" rows="5" placeholder="Example: Improve this project, fix bugs, update the UI, add missing files, and keep existing functionality working."></textarea><button id="analyzeBtn" class="primary" disabled>🤖 Plan & Analyze</button><div id="agentStatus" class="status"></div></section><section id="review" class="card hidden"><h2>Agent plan & review</h2><div id="summary"></div><div id="changes"></div><label>Commit message</label><input id="commitMessage" value="AI Repo Agent: repository changes"><button id="commitBtn" class="danger">Create backup & commit approved changes</button><div id="commitStatus" class="status"></div></section></main><footer><span>iPhone-first PWA · repository-level agent v3</span><span id="modelLabel"></span></footer></div><dialog id="settingsDialog"><form method="dialog" class="dialog"><h2>Settings</h2><label>GitHub token</label><input id="ghToken" type="password" autocomplete="off" placeholder="Fine-grained token: Contents Read/Write"><label>Gemini API key</label><input id="geminiKey" type="password" autocomplete="off"><label>Gemini model</label><input id="geminiModel" value="gemini-3.6-flash"><p class="hint">For personal use these values stay in this browser. For public deployment, use the included Worker proxy for Gemini. GitHub write access is required for commits and backup branches.</p><div class="row"><button value="cancel">Cancel</button><button id="saveSettings" value="default" class="primary">Save</button></div></form></dialog><script src="app.js?v=3"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>AI Repo Agent</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css?v=5">
+</head>
+<body>
+<main>
+<header>
+  <h1>AI Repo Agent</h1>
+  <p>iPhone-first GitHub coding agent</p>
+</header>
+
+<section class="card">
+  <h2>Configuration</h2>
+  <label>GitHub repository
+    <input id="repo" placeholder="owner/repository" autocomplete="off">
+  </label>
+  <label>Branch
+    <input id="branch" value="main" autocomplete="off">
+  </label>
+  <label>GitHub Personal Access Token
+    <input id="githubToken" type="password" placeholder="github_pat_..." autocomplete="off">
+  </label>
+  <label>OpenRouter API Key
+    <input id="openrouterKey" type="password" placeholder="sk-or-v1-..." autocomplete="off">
+  </label>
+  <label>OpenRouter model
+    <input id="model" value="minimax/minimax-m3:free" autocomplete="off">
+  </label>
+  <label>Optional Worker URL
+    <input id="workerUrl" placeholder="https://your-worker.workers.dev" autocomplete="off">
+  </label>
+  <button id="load">Load repository</button>
+</section>
+
+<section class="card">
+  <h2>Agent</h2>
+  <p id="status">Load a repository to begin.</p>
+  <div class="row">
+    <button id="selectAll" disabled>Select all</button>
+    <button id="clear" disabled>Clear</button>
+  </div>
+  <div id="files" class="files"></div>
+  <button id="analyze" disabled>🤖 Plan &amp; Analyze</button>
+</section>
+
+<section id="reviewCard" class="card hidden">
+  <h2>Review changes</h2>
+  <div id="review"></div>
+  <button id="commit">Create backup &amp; commit approved changes</button>
+</section>
+
+<footer>Repository-level agent · OpenRouter · GitHub</footer>
+</main>
+<script src="app.js?v=5"></script>
+</body>
+</html>

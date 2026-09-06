@@ -1,26 +1,25 @@
-# AI Repo Agent — Repository-Level iPhone PWA
+# AI Repo Agent — OpenRouter + GitHub
 
-This build upgrades the original Python-only repair screen into a repository-level coding agent.
+iPhone-first PWA that loads text/source/config files from a GitHub repository, sends selected files to OpenRouter, reviews proposed create/modify/delete actions, creates a backup branch, and commits approved changes.
 
-## What changed
-- Loads source/configuration files across the repository, not only `.py`.
-- Gemini can propose `create`, `modify`, and `delete` operations.
-- New files can be created and existing files can be edited or deleted.
-- The IDE can modify its own repository (`ai-repo-agent`) like any other repository.
-- Before every approved push, a timestamped backup branch is created at the current branch HEAD.
-- The approved operations are assembled into one Git commit and pushed with a non-force branch update.
-- Binary assets are not sent to Gemini as text.
+## Required credentials
 
-## Supported text/source formats
-Python, JavaScript, TypeScript, JSX/TSX, Java, Kotlin/KTS, Swift, Go, Rust, Ruby, PHP, C/C++, C#, Dart, shell, HTML, CSS/SCSS, XML/SVG, JSON, YAML, TOML, INI/config, Gradle, SQL, GraphQL, protobuf, Markdown, text and common project files.
+1. OpenRouter API key
+2. GitHub fine-grained Personal Access Token:
+   - Repository access: only selected repositories
+   - Contents: Read and write
+   - Metadata: Read-only
 
-## GitHub permissions
-For each repository the agent modifies, the fine-grained token needs Repository access to that repository and at least:
-- Contents: Read and write
-- Metadata: Read-only
+## Important
 
-## Self-modification
-Set the repository to `yalangisexter-ux/ai-repo-agent`. The agent can load and propose changes to `app.js`, `index.html`, `styles.css`, manifest/config files, etc. After committing, GitHub Pages deploys the new version; reload the PWA to run it.
+This version calls OpenRouter and GitHub directly from the browser. For a public multi-user deployment, move credentials behind a server/Cloudflare Worker and use OAuth/GitHub App where appropriate.
 
-## Security note
-The current personal-use PWA stores GitHub/Gemini credentials in browser localStorage. For public deployment, use the included Worker proxy for Gemini and preferably GitHub OAuth/GitHub App authentication instead of a raw PAT.
+The agent does not execute arbitrary repository code in the browser. It displays a validation plan; actual tests should be run in CI/GitHub Actions.
+
+
+## Optional Worker mode
+
+If a Worker URL is entered, the PWA sends AI and GitHub requests through the Worker.
+In that mode, `OPENROUTER_API_KEY` and `GITHUB_TOKEN` stay in Cloudflare Worker secrets and do not need to be entered into the browser.
+
+If no Worker URL is entered, direct browser-to-API mode remains available for personal testing.
